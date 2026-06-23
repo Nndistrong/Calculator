@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Calculator</title>
+<meta name="description" content="A simple, fast calculator.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0A0A0A">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Calculator">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+  :root{
+    --bg:#0A0A0A;
+    --surface:#1C1C1C;
+    --surface-2:#262626;
+    --red:#FF1E1E;
+    --red-dim:#7A0E0E;
+    --text:#EDEDED;
+    --text-dim:#8A8A8A;
+    --op:#CFCFCF;
+    --border:#2A2A2A;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%; background:var(--bg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden; user-select:none;
+  }
+  #app{
+    width:100%; max-width:430px; height:100vh; margin:0 auto;
+    background:var(--bg); position:relative; display:flex; flex-direction:column;
+    overflow:hidden;
+  }
+
+  /* ---------- CALCULATOR ---------- */
+  .screen{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    background:var(--bg); opacity:1; transition:opacity .35s ease;
+  }
+  .screen.hidden{opacity:0; pointer-events:none;}
+
+  .calc-display{
+    flex:1; display:flex; flex-direction:column; justify-content:flex-end;
+    padding:24px 24px 8px; min-height:160px;
+  }
+  .calc-history{
+    color:var(--text-dim); font-size:18px; min-height:24px; text-align:right;
+    font-variant-numeric:tabular-nums; overflow:hidden; white-space:nowrap;
+  }
+  .calc-current{
+    color:var(--text); font-size:64px; font-weight:300; text-align:right;
+    font-variant-numeric:tabular-nums; overflow:hidden; white-space:nowrap;
+    letter-spacing:-1px; margin-top:8px;
+  }
+
+  .calc-pad{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:12px;
+    padding:12px 16px 24px;
+  }
+  .btn{
+    height:72px; border:none; border-radius:50%; background:var(--surface);
+    color:var(--text); font-size:28px; font-weight:400;
+    display:flex; align-items:center; justify-content:center;
+    transition:filter .1s ease, transform .08s ease;
+  }
+  .btn:active{filter:brightness(1.4); transform:scale(0.96);}
+  .btn.op{background:var(--surface-2); color:var(--red);}
+  .btn.func{background:var(--surface); color:var(--op); font-size:24px;}
+  .btn.eq{background:var(--red); color:#0A0A0A; font-weight:500;}
+  .btn.zero{grid-column:span 2; border-radius:36px; justify-content:flex-start; padding-left:28px;}
+
+  /* ---------- VAULT ---------- */
+  .vault{
+    position:absolute; inset:0; background:var(--bg);
+    display:flex; flex-direction:column; opacity:0; pointer-events:none;
+    transition:opacity .4s ease;
+  }
+  .vault.show{opacity:1; pointer-events:auto;}
+
+  .vault-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 18px 12px; border-bottom:1px solid var(--border);
+  }
+  .vault-title{color:var(--text); font-size:19px; font-weight:500;}
+  .vault-actions{display:flex; gap:14px;}
+  .icon-btn{
+    width:38px; height:38px; border-radius:50%; background:var(--surface);
+    border:none; color:var(--red); display:flex; align-items:center; justify-content:center;
+    font-size:18px; cursor:pointer;
+  }
+  .icon-btn:active{filter:brightness(1.3);}
+
+  .vault-grid{
+    flex:1; overflow-y:auto; padding:14px; display:grid;
+    grid-template-columns:repeat(3,1fr); gap:8px; align-content:start;
+  }
+  .vault-empty{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:var(--text-dim); gap:10px; padding:0 40px; text-align:center;
+  }
+  .vault-empty .e-icon{
+    width:56px; height:56px; border-radius:50%; background:var(--surface);
+    display:flex; align-items:center; justify-content:center; color:var(--red); font-size:24px; margin-bottom:6px;
+  }
+  .vault-item{
+    position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden;
+    background:var(--surface);
+  }
+  .vault-item img, .vault-item video{
+    width:100%; height:100%; object-fit:cover; display:block;
+  }
+  .vault-item .vid-badge{
+    position:absolute; bottom:5px; right:5px; background:rgba(0,0,0,.6);
+    color:#fff; font-size:11px; padding:2px 6px; border-radius:6px;
+  }
+  .vault-item .del-x{
+    position:absolute; top:4px; right:4px; width:22px; height:22px; border-radius:50%;
+    background:rgba(0,0,0,.55); color:#fff; border:none; font-size:13px;
+    display:none; align-items:center; justify-content:center;
+  }
+  .vault-item.edit-mode .del-x{display:flex;}
+
+  .vault-fab{
+    position:absolute; right:18px; bottom:24px; width:56px; height:56px; border-radius:50%;
+    background:var(--red); border:none; color:#0A0A0A; font-size:26px;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    box-shadow:0 4px 14px rgba(255,30,30,.25);
+  }
+  .vault-fab:active{filter:brightness(1.15); transform:scale(0.96);}
+
+  /* viewer */
+  .viewer{
+    position:absolute; inset:0; background:#000; z-index:20;
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .viewer.show{opacity:1; pointer-events:auto;}
+  .viewer img, .viewer video{max-width:100%; max-height:100%; object-fit:contain;}
+  .viewer-close{
+    position:absolute; top:16px; right:16px; width:38px; height:38px; border-radius:50%;
+    background:rgba(255,255,255,.12); border:none; color:#fff; font-size:18px;
+    display:flex; align-items:center; justify-content:center; z-index:2;
+  }
+
+  /* ---------- SETTINGS (inside vault only) ---------- */
+  .settings{
+    position:absolute; inset:0; background:var(--bg); z-index:15;
+    display:flex; flex-direction:column;
+    transform:translateX(100%); transition:transform .3s ease;
+  }
+  .settings.show{transform:translateX(0);}
+  .settings-header{
+    display:flex; align-items:center; gap:14px; padding:18px;
+    border-bottom:1px solid var(--border);
+  }
+  .settings-title{color:var(--text); font-size:18px; font-weight:500;}
+  .settings-body{flex:1; overflow-y:auto; padding:18px;}
+  .s-group{margin-bottom:28px;}
+  .s-label{color:var(--text-dim); font-size:12px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px;}
+  .s-row{
+    background:var(--surface); border-radius:12px; padding:14px 16px;
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;
+  }
+  .s-row-label{color:var(--text); font-size:15px;}
+  .s-row-sub{color:var(--text-dim); font-size:12px; margin-top:2px;}
+  .toggle{
+    width:46px; height:27px; border-radius:14px; background:var(--surface-2);
+    position:relative; cursor:pointer; transition:background .2s ease; flex-shrink:0;
+  }
+  .toggle.on{background:var(--red);}
+  .toggle .knob{
+    position:absolute; top:2px; left:2px; width:23px; height:23px; border-radius:50%;
+    background:#fff; transition:left .2s ease;
+  }
+  .toggle.on .knob{left:21px;}
+  .pin-input-row{display:flex; flex-direction:column; gap:10px;}
+  .pin-box{
+    flex:1; background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:13px; color:var(--text); font-size:18px; text-align:center;
+    font-variant-numeric:tabular-nums; outline:none;
+  }
+  .pin-box:focus{border-color:var(--red);}
+  .s-btn{
+    width:100%; padding:14px; border-radius:12px; border:none; background:var(--red);
+    color:#0A0A0A; font-size:15px; font-weight:500; margin-top:10px; cursor:pointer;
+  }
+  .s-btn:active{filter:brightness(1.1);}
+  .s-msg{font-size:13px; margin-top:8px; min-height:16px;}
+  .s-msg.ok{color:#4ADE80;}
+  .s-msg.err{color:var(--red);}
+  .s-hint{color:var(--text-dim); font-size:12px; line-height:1.5; margin-top:10px;}
+
+  input[type=file]{display:none;}
+
+  /* ---------- SECTION SWITCHER ---------- */
+  .tab-bar{
+    display:flex; border-top:1px solid var(--border); background:var(--bg);
+    padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));
+  }
+  .tab-btn{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;
+    background:none; border:none; color:var(--text-dim); font-size:10px;
+    padding:6px 0; cursor:pointer;
+  }
+  .tab-btn .tab-icon{font-size:20px; line-height:1;}
+  .tab-btn.active{color:var(--red);}
+
+  .section-view{display:none; flex:1; flex-direction:column; overflow:hidden;}
+  .section-view.active{display:flex;}
+
+  /* ---------- NOTES ---------- */
+  .notes-list{flex:1; overflow-y:auto; padding:14px;}
+  .note-card{
+    background:var(--surface); border-radius:12px; padding:14px; margin-bottom:10px;
+    position:relative;
+  }
+  .note-text{color:var(--text); font-size:14px; line-height:1.5; white-space:pre-wrap; word-break:break-word;}
+  .note-date{color:var(--text-dim); font-size:11px; margin-top:8px;}
+  .note-del{
+    position:absolute; top:10px; right:10px; width:24px; height:24px; border-radius:50%;
+    background:var(--surface-2); color:var(--red); border:none; font-size:13px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .note-editor{
+    position:absolute; inset:0; background:var(--bg); z-index:18;
+    display:flex; flex-direction:column; transform:translateY(100%); transition:transform .25s ease;
+  }
+  .note-editor.show{transform:translateY(0);}
+  .note-editor-header{
+    display:flex; align-items:center; justify-content:space-between; padding:14px 16px;
+    border-bottom:1px solid var(--border);
+  }
+  .note-editor textarea{
+    flex:1; background:var(--bg); border:none; outline:none; color:var(--text);
+    font-size:16px; padding:16px; resize:none; font-family:inherit; line-height:1.6;
+  }
+  .note-save-btn{
+    background:none; border:none; color:var(--red); font-size:15px; font-weight:600;
+  }
+
+  /* ---------- CONTACTS ---------- */
+  .contacts-list{flex:1; overflow-y:auto; padding:14px;}
+  .contact-card{
+    background:var(--surface); border-radius:12px; padding:14px 16px; margin-bottom:8px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .contact-info{display:flex; flex-direction:column;}
+  .contact-name{color:var(--text); font-size:15px; font-weight:500;}
+  .contact-phone{color:var(--text-dim); font-size:13px; margin-top:2px;}
+  .contact-del{
+    width:26px; height:26px; border-radius:50%; background:var(--surface-2);
+    color:var(--red); border:none; font-size:13px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .contact-editor{
+    position:absolute; inset:0; background:var(--bg); z-index:18;
+    display:flex; flex-direction:column; transform:translateY(100%); transition:transform .25s ease;
+  }
+  .contact-editor.show{transform:translateY(0);}
+  .contact-editor-body{padding:18px; display:flex; flex-direction:column; gap:12px;}
+  .c-input{
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:13px; color:var(--text); font-size:16px; outline:none;
+  }
+  .c-input:focus{border-color:var(--red);}
+
+  .section-empty{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:var(--text-dim); gap:10px; padding:0 40px; text-align:center;
+  }
+  .section-empty .e-icon{
+    width:56px; height:56px; border-radius:50%; background:var(--surface);
+    display:flex; align-items:center; justify-content:center; color:var(--red); font-size:24px; margin-bottom:6px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- CALCULATOR -->
+  <div class="screen" id="calcScreen">
+    <div class="calc-display">
+      <div class="calc-history" id="history">&nbsp;</div>
+      <div class="calc-current" id="current">0</div>
+    </div>
+    <div class="calc-pad" id="pad"></div>
+  </div>
+
+  <!-- VAULT -->
+  <div class="vault" id="vault">
+    <div class="vault-header">
+      <div class="vault-title" id="sectionTitle">Gallery</div>
+      <div class="vault-actions">
+        <button class="icon-btn" id="editToggle" title="Select">✎</button>
+        <button class="icon-btn" id="settingsBtn" title="Settings">⚙</button>
+        <button class="icon-btn" id="lockBtn" title="Lock">🔒</button>
+      </div>
+    </div>
+
+    <!-- GALLERY SECTION -->
+    <div class="section-view active" id="sectionGallery">
+      <div class="vault-grid" id="vaultGrid"></div>
+      <button class="vault-fab" id="addBtn">+</button>
+      <input type="file" id="fileInput" accept="image/*,video/*" multiple>
+    </div>
+
+    <!-- NOTES SECTION -->
+    <div class="section-view" id="sectionNotes">
+      <div class="notes-list" id="notesList"></div>
+      <button class="vault-fab" id="addNoteBtn">+</button>
+    </div>
+
+    <!-- CONTACTS SECTION -->
+    <div class="section-view" id="sectionContacts">
+      <div class="contacts-list" id="contactsList"></div>
+      <button class="vault-fab" id="addContactBtn">+</button>
+    </div>
+
+    <!-- TAB BAR -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-section="gallery">
+        <span class="tab-icon">▦</span><span>Gallery</span>
+      </button>
+      <button class="tab-btn" data-section="notes">
+        <span class="tab-icon">▤</span><span>Notes</span>
+      </button>
+      <button class="tab-btn" data-section="contacts">
+        <span class="tab-icon">◐</span><span>Contacts</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- NOTE EDITOR -->
+  <div class="note-editor" id="noteEditor">
+    <div class="note-editor-header">
+      <button class="icon-btn" id="noteEditorClose">←</button>
+      <button class="note-save-btn" id="noteSaveBtn">Save</button>
+    </div>
+    <textarea id="noteTextarea" placeholder="Write a note..."></textarea>
+  </div>
+
+  <!-- CONTACT EDITOR -->
+  <div class="contact-editor" id="contactEditor">
+    <div class="note-editor-header">
+      <button class="icon-btn" id="contactEditorClose">←</button>
+      <button class="note-save-btn" id="contactSaveBtn">Save</button>
+    </div>
+    <div class="contact-editor-body">
+      <input class="c-input" id="contactNameInput" placeholder="Name">
+      <input class="c-input" id="contactPhoneInput" placeholder="Phone number" inputmode="tel">
+    </div>
+  </div>
+
+  <!-- VIEWER -->
+  <div class="viewer" id="viewer">
+    <button class="viewer-close" id="viewerClose">✕</button>
+    <div id="viewerMedia"></div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="settings" id="settings">
+    <div class="settings-header">
+      <button class="icon-btn" id="settingsBack">←</button>
+      <div class="settings-title">Gallery settings</div>
+    </div>
+    <div class="settings-body">
+      <div class="s-group">
+        <div class="s-label">Unlock code</div>
+        <div class="s-row" style="display:block;">
+          <div class="s-row-label" style="margin-bottom:10px;">Set a new code</div>
+          <div class="pin-input-row">
+            <input class="pin-box" id="newPin" inputmode="numeric" placeholder="New code" maxlength="12">
+            <input class="pin-box" id="confirmPin" inputmode="numeric" placeholder="Confirm" maxlength="12">
+          </div>
+          <button class="s-btn" id="savePin">Save code</button>
+          <div class="s-msg" id="pinMsg"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  // ---------- STATE ----------
+  const DEFAULT_PIN = "192837"; // first-run default, user should change in settings
+  let storedPin = localStorage.getItem('culator_pin') || DEFAULT_PIN;
+  let buffer = "0";
+  let prevValue = null;
+  let pendingOp = null;
+  let justEvaluated = false;
+  let rawEntry = ""; // tracks raw digit sequence since last full clear, for PIN matching
+  let editMode = false;
+
+  const currentEl = document.getElementById('current');
+  const historyEl = document.getElementById('history');
+  const calcScreen = document.getElementById('calcScreen');
+  const vault = document.getElementById('vault');
+  const vaultGrid = document.getElementById('vaultGrid');
+  const settings = document.getElementById('settings');
+  const viewer = document.getElementById('viewer');
+  const viewerMedia = document.getElementById('viewerMedia');
+
+  // ---------- CALCULATOR UI ----------
+  const keys = [
+    {l:'C', cls:'func'}, {l:'±', cls:'func'}, {l:'%', cls:'func'}, {l:'÷', cls:'op'},
+    {l:'7'}, {l:'8'}, {l:'9'}, {l:'×', cls:'op'},
+    {l:'4'}, {l:'5'}, {l:'6'}, {l:'−', cls:'op'},
+    {l:'1'}, {l:'2'}, {l:'3'}, {l:'+', cls:'op'},
+    {l:'0', cls:'zero'}, {l:'.'}, {l:'=', cls:'eq'}
+  ];
+  const pad = document.getElementById('pad');
+  let pressTimer = null;
+  let longPressFired = false;
+
+  keys.forEach(k=>{
+    const b = document.createElement('button');
+    b.className = 'btn' + (k.cls ? ' '+k.cls : '');
+    b.textContent = k.l;
+
+    if (k.l === '='){
+      const startPress = (e)=>{
+        longPressFired = false;
+        pressTimer = setTimeout(()=>{
+          longPressFired = true;
+          if (navigator.vibrate) navigator.vibrate(30);
+          openRecovery();
+        }, 650);
+      };
+      const cancelPress = ()=>{ clearTimeout(pressTimer); };
+      b.addEventListener('touchstart', startPress, {passive:true});
+      b.addEventListener('touchend', cancelPress);
+      b.addEventListener('touchmove', cancelPress);
+      b.addEventListener('mousedown', startPress);
+      b.addEventListener('mouseup', cancelPress);
+      b.addEventListener('mouseleave', cancelPress);
+      b.addEventListener('click', ()=>{
+        if (longPressFired){ longPressFired = false; return; }
+        handleKey(k.l);
+      });
+    } else {
+      b.addEventListener('click', ()=>handleKey(k.l));
+    }
+    pad.appendChild(b);
+  });
+
+  function formatNum(n){
+    if (n === null || n === undefined || isNaN(n)) return "0";
+    let s = String(n);
+    if (s.length > 12) s = parseFloat(n.toPrecision(10)).toString();
+    return s;
+  }
+
+  function render(){
+    currentEl.textContent = buffer;
+    if (pendingOp && prevValue !== null){
+      historyEl.textContent = formatNum(prevValue) + " " + pendingOp;
+    } else {
+      historyEl.textContent = "\u00a0";
+    }
+  }
+
+  function handleKey(k){
+    if (k >= '0' && k <= '9'){
+      if (justEvaluated){ buffer = "0"; rawEntry=""; justEvaluated = false; }
+      buffer = (buffer === "0") ? k : buffer + k;
+      rawEntry += k;
+    } else if (k === '.'){
+      if (justEvaluated){ buffer = "0"; justEvaluated = false; }
+      if (!buffer.includes('.')) buffer += '.';
+    } else if (k === 'C'){
+      buffer = "0"; prevValue = null; pendingOp = null; rawEntry = ""; justEvaluated = false;
+    } else if (k === '±'){
+      buffer = String(parseFloat(buffer) * -1);
+    } else if (k === '%'){
+      buffer = String(parseFloat(buffer) / 100);
+    } else if (k === '÷' || k === '×' || k === '−' || k === '+'){
+      if (pendingOp && prevValue !== null && !justEvaluated){
+        prevValue = compute(prevValue, parseFloat(buffer), pendingOp);
+        buffer = formatNum(prevValue);
+      } else {
+        prevValue = parseFloat(buffer);
+      }
+      pendingOp = k;
+      justEvaluated = false;
+      buffer = "0";
+      rawEntry = ""; // operators break the "PIN digit streak" — PIN must be entered as one continuous number
+    } else if (k === '='){
+      const fullSequence = rawEntry; // the continuous digit string typed just before this '='
+      let result;
+      if (pendingOp && prevValue !== null){
+        result = compute(prevValue, parseFloat(buffer), pendingOp);
+      } else {
+        result = parseFloat(buffer);
+      }
+      pendingOp = null;
+      prevValue = null;
+      justEvaluated = true;
+
+      if (fullSequence.length > 0 && fullSequence === storedPin){
+        buffer = formatNum(result);
+        render();
+        setTimeout(openVault, 90);
+        return;
+      }
+      buffer = formatNum(result);
+    }
+    render();
+  }
+
+  function compute(a, b, op){
+    switch(op){
+      case '+': return a + b;
+      case '−': return a - b;
+      case '×': return a * b;
+      case '÷': return b === 0 ? 0 : a / b;
+    }
+    return b;
+  }
+
+  render();
+
+  // ---------- RECOVERY (long-press "=") ----------
+  let enteredViaRecovery = false;
+  function openRecovery(){
+    enteredViaRecovery = true;
+    buffer = "0"; prevValue = null; pendingOp = null; rawEntry = ""; justEvaluated = false;
+    render();
+    document.getElementById('pinMsg').textContent = "Set a new code to continue.";
+    document.getElementById('pinMsg').className = "s-msg ok";
+    settings.classList.add('show');
+  }
+
+  // ---------- GALLERY ----------
+  let media = JSON.parse(localStorage.getItem('culator_media') || '[]');
+
+  function openVault(){
+    vault.classList.add('show');
+    calcScreen.classList.add('hidden');
+    renderVault();
+  }
+  function closeVault(){
+    vault.classList.remove('show');
+    calcScreen.classList.remove('hidden');
+    buffer = "0"; prevValue = null; pendingOp = null; rawEntry = ""; justEvaluated = false;
+    render();
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelector('.tab-btn[data-section="gallery"]').classList.add('active');
+    document.querySelectorAll('.section-view').forEach(v=>v.classList.remove('active'));
+    document.getElementById('sectionGallery').classList.add('active');
+    document.getElementById('sectionTitle').textContent = 'Gallery';
+    editMode = false;
+  }
+  document.getElementById('lockBtn').addEventListener('click', closeVault);
+
+  function renderVault(){
+    vaultGrid.innerHTML = "";
+    if (media.length === 0){
+      vaultGrid.style.display = 'none';
+      let empty = document.getElementById('vaultEmptyState');
+      if (!empty){
+        empty = document.createElement('div');
+        empty.id = 'vaultEmptyState';
+        empty.className = 'vault-empty';
+        empty.innerHTML = '<div class="e-icon">+</div><div>No photos or videos yet.<br>Tap the red button to add your first item.</div>';
+        vault.insertBefore(empty, document.getElementById('addBtn'));
+      }
+      return;
+    }
+    const empty = document.getElementById('vaultEmptyState');
+    if (empty) empty.remove();
+    vaultGrid.style.display = 'grid';
+
+    media.forEach((m, i)=>{
+      const item = document.createElement('div');
+      item.className = 'vault-item' + (editMode ? ' edit-mode' : '');
+      const el = m.type === 'video'
+        ? `<video src="${m.data}" muted></video><div class="vid-badge">▶</div>`
+        : `<img src="${m.data}">`;
+      item.innerHTML = el + `<button class="del-x" data-i="${i}">✕</button>`;
+      item.addEventListener('click', (e)=>{
+        if (editMode){
+          if (e.target.classList.contains('del-x')){
+            media.splice(i,1);
+            saveMedia();
+            renderVault();
+          }
+          return;
+        }
+        openViewer(m);
+      });
+      vaultGrid.appendChild(item);
+    });
+  }
+
+  function saveMedia(){
+    try{
+      localStorage.setItem('culator_media', JSON.stringify(media));
+    }catch(e){
+      alert('Storage full — this browser demo keeps files in localStorage, which has limited space. Try removing some items.');
+    }
+  }
+
+  document.getElementById('editToggle').addEventListener('click', ()=>{
+    editMode = !editMode;
+    document.getElementById('editToggle').style.color = editMode ? 'var(--text)' : 'var(--red)';
+    renderVault();
+  });
+
+  // add media
+  const fileInput = document.getElementById('fileInput');
+  document.getElementById('addBtn').addEventListener('click', ()=> fileInput.click());
+  fileInput.addEventListener('change', (e)=>{
+    const files = Array.from(e.target.files);
+    let remaining = files.length;
+    files.forEach(f=>{
+      const reader = new FileReader();
+      reader.onload = function(ev){
+        media.push({
+          type: f.type.startsWith('video') ? 'video' : 'image',
+          data: ev.target.result,
+          name: f.name,
+          addedAt: Date.now()
+        });
+        remaining--;
+        if (remaining === 0){
+          saveMedia();
+          renderVault();
+        }
+      };
+      reader.readAsDataURL(f);
+    });
+    fileInput.value = "";
+  });
+
+  // viewer
+  function openViewer(m){
+    viewerMedia.innerHTML = m.type === 'video'
+      ? `<video src="${m.data}" controls autoplay></video>`
+      : `<img src="${m.data}">`;
+    viewer.classList.add('show');
+  }
+  document.getElementById('viewerClose').addEventListener('click', ()=>{
+    viewer.classList.remove('show');
+    viewerMedia.innerHTML = "";
+  });
+
+  // ---------- SETTINGS ----------
+  document.getElementById('settingsBtn').addEventListener('click', ()=>{
+    settings.classList.add('show');
+  });
+  document.getElementById('settingsBack').addEventListener('click', ()=>{
+    settings.classList.remove('show');
+    document.getElementById('pinMsg').textContent = "";
+    document.getElementById('newPin').value = "";
+    document.getElementById('confirmPin').value = "";
+    if (enteredViaRecovery){
+      enteredViaRecovery = false;
+      closeVault();
+    }
+  });
+
+  const newPinEl = document.getElementById('newPin');
+  const confirmPinEl = document.getElementById('confirmPin');
+  [newPinEl, confirmPinEl].forEach(el=>{
+    el.addEventListener('input', ()=>{ el.value = el.value.replace(/[^0-9]/g,''); });
+  });
+
+  document.getElementById('savePin').addEventListener('click', ()=>{
+    const a = newPinEl.value, b = confirmPinEl.value;
+    const msg = document.getElementById('pinMsg');
+    if (a.length < 4){
+      msg.textContent = "Use at least 4 digits."; msg.className = "s-msg err"; return;
+    }
+    if (a !== b){
+      msg.textContent = "Codes don't match."; msg.className = "s-msg err"; return;
+    }
+    storedPin = a;
+    localStorage.setItem('culator_pin', storedPin);
+    msg.textContent = "Saved. Use this code on the calculator next time.";
+    msg.className = "s-msg ok";
+    newPinEl.value = ""; confirmPinEl.value = "";
+  });
+
+  // ---------- SECTION SWITCHING ----------
+  const sectionTitles = { gallery: 'Gallery', notes: 'Notes', contacts: 'Contacts' };
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const target = btn.dataset.section;
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.section-view').forEach(v=>v.classList.remove('active'));
+      document.getElementById('section' + target.charAt(0).toUpperCase() + target.slice(1)).classList.add('active');
+      document.getElementById('sectionTitle').textContent = sectionTitles[target];
+      editMode = false;
+      if (target === 'gallery') renderVault();
+      if (target === 'notes') renderNotes();
+      if (target === 'contacts') renderContacts();
+    });
+  });
+
+  // ---------- NOTES ----------
+  let notes = JSON.parse(localStorage.getItem('culator_notes') || '[]');
+  let editingNoteId = null;
+  const notesList = document.getElementById('notesList');
+  const noteEditor = document.getElementById('noteEditor');
+  const noteTextarea = document.getElementById('noteTextarea');
+
+  function saveNotes(){
+    localStorage.setItem('culator_notes', JSON.stringify(notes));
+  }
+
+  function renderNotes(){
+    notesList.innerHTML = "";
+    if (notes.length === 0){
+      notesList.innerHTML = '<div class="section-empty" style="position:static; height:100%;"><div class="e-icon">+</div><div>No notes yet.<br>Tap the red button to write one.</div></div>';
+      return;
+    }
+    notes.slice().reverse().forEach(n=>{
+      const card = document.createElement('div');
+      card.className = 'note-card';
+      const preview = n.text.length > 300 ? n.text.slice(0,300) + '…' : n.text;
+      const d = new Date(n.updatedAt);
+      card.innerHTML = `
+        <button class="note-del" data-id="${n.id}">✕</button>
+        <div class="note-text">${escapeHtml(preview)}</div>
+        <div class="note-date">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+      `;
+      card.querySelector('.note-text').addEventListener('click', ()=> openNoteEditor(n.id));
+      card.querySelector('.note-del').addEventListener('click', (e)=>{
+        e.stopPropagation();
+        notes = notes.filter(x=>x.id !== n.id);
+        saveNotes();
+        renderNotes();
+      });
+      notesList.appendChild(card);
+    });
+  }
+
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function openNoteEditor(id){
+    editingNoteId = id;
+    noteTextarea.value = id ? (notes.find(n=>n.id===id)||{}).text || '' : '';
+    noteEditor.classList.add('show');
+    setTimeout(()=>noteTextarea.focus(), 300);
+  }
+  document.getElementById('addNoteBtn').addEventListener('click', ()=> openNoteEditor(null));
+  document.getElementById('noteEditorClose').addEventListener('click', ()=>{
+    noteEditor.classList.remove('show');
+  });
+  document.getElementById('noteSaveBtn').addEventListener('click', ()=>{
+    const text = noteTextarea.value.trim();
+    if (text.length === 0){
+      noteEditor.classList.remove('show');
+      return;
+    }
+    if (editingNoteId){
+      const n = notes.find(x=>x.id === editingNoteId);
+      if (n){ n.text = text; n.updatedAt = Date.now(); }
+    } else {
+      notes.push({ id: 'n' + Date.now() + Math.random().toString(36).slice(2,7), text, updatedAt: Date.now() });
+    }
+    saveNotes();
+    noteEditor.classList.remove('show');
+    renderNotes();
+  });
+
+  // ---------- CONTACTS ----------
+  let contacts = JSON.parse(localStorage.getItem('culator_contacts') || '[]');
+  let editingContactId = null;
+  const contactsList = document.getElementById('contactsList');
+  const contactEditor = document.getElementById('contactEditor');
+  const contactNameInput = document.getElementById('contactNameInput');
+  const contactPhoneInput = document.getElementById('contactPhoneInput');
+
+  function saveContacts(){
+    localStorage.setItem('culator_contacts', JSON.stringify(contacts));
+  }
+
+  function renderContacts(){
+    contactsList.innerHTML = "";
+    if (contacts.length === 0){
+      contactsList.innerHTML = '<div class="section-empty" style="position:static; height:100%;"><div class="e-icon">+</div><div>No contacts yet.<br>Tap the red button to add one.</div></div>';
+      return;
+    }
+    contacts.slice().sort((a,b)=> a.name.localeCompare(b.name)).forEach(c=>{
+      const card = document.createElement('div');
+      card.className = 'contact-card';
+      card.innerHTML = `
+        <div class="contact-info">
+          <div class="contact-name">${escapeHtml(c.name)}</div>
+          <div class="contact-phone">${escapeHtml(c.phone)}</div>
+        </div>
+        <button class="contact-del" data-id="${c.id}">✕</button>
+      `;
+      card.querySelector('.contact-info').addEventListener('click', ()=> openContactEditor(c.id));
+      card.querySelector('.contact-del').addEventListener('click', (e)=>{
+        e.stopPropagation();
+        contacts = contacts.filter(x=>x.id !== c.id);
+        saveContacts();
+        renderContacts();
+      });
+      contactsList.appendChild(card);
+    });
+  }
+
+  function openContactEditor(id){
+    editingContactId = id;
+    const c = id ? contacts.find(x=>x.id===id) : null;
+    contactNameInput.value = c ? c.name : '';
+    contactPhoneInput.value = c ? c.phone : '';
+    contactEditor.classList.add('show');
+    setTimeout(()=>contactNameInput.focus(), 300);
+  }
+  document.getElementById('addContactBtn').addEventListener('click', ()=> openContactEditor(null));
+  document.getElementById('contactEditorClose').addEventListener('click', ()=>{
+    contactEditor.classList.remove('show');
+  });
+  document.getElementById('contactSaveBtn').addEventListener('click', ()=>{
+    const name = contactNameInput.value.trim();
+    const phone = contactPhoneInput.value.trim();
+    if (!name && !phone){
+      contactEditor.classList.remove('show');
+      return;
+    }
+    if (editingContactId){
+      const c = contacts.find(x=>x.id === editingContactId);
+      if (c){ c.name = name; c.phone = phone; }
+    } else {
+      contacts.push({ id: 'c' + Date.now() + Math.random().toString(36).slice(2,7), name, phone });
+    }
+    saveContacts();
+    contactEditor.classList.remove('show');
+    renderContacts();
+  });
+
+})();
+
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+}
+
+</script>
+</body>
+</html>
